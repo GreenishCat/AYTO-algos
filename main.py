@@ -41,7 +41,7 @@ def main():
     print("Finished histogram for Greedy\n")
 
 
-    print("Starting histogram for Opimitized")
+    print("Starting histogram for Optimized")
     round_sample = [] # rounds taken for each game will be appended here to be plotted later.
     for new_game in range(10000):
         game = AYTO_Game()
