@@ -1,39 +1,45 @@
-# WORK IN PROGRESS
-# uses code from the og file, but I wanted to separate it from the code that's good to go
-# works, but it's not optimized at all
-
 import random
-from itertools import combinations, permutations
+from itertools import combinations
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+import statistics
 
 class AYTO_Game:
+    """game set up for the algorithms to use"""
     def __init__(self):
-        self.contestants = list(range(16))
-        random.shuffle(self.contestants)
-        self.perfect_pairs = [(self.contestants[i], self.contestants[i+1]) for i in range(0, 16, 2)]
+        """initializes variables and the contestants to pair"""
+        self.contestants = list(range(0,16)) # creates the list of contestants, numbered 0 - 15
+        random.shuffle(self.contestants) # shuffles the list of contestants
+        self.perfect_pairs = [tuple(sorted((self.contestants[i], self.contestants[i+1]))) for i in range(0, 16, 2)] # creates pairs
         self.found_pairs = []
         self.guesses = []
-        self.available_contestants = set(range(16))
+        self.available_contestants = set(range(0,16))
 
     def new_round(self, guessed_pairs):
-        self.guesses.append(guessed_pairs)
-        correct_count = sum(1 for pair in guessed_pairs if pair in self.perfect_pairs)
-        return correct_count
+        """code for what happens when round is over/start of new round"""
+        self.guesses.append(guessed_pairs) # adds guessed pair to the list of guesses
+        correct_count = sum(1 for pair in guessed_pairs if tuple(sorted(pair)) in self.perfect_pairs) # increases count of correct pairs if the pair was correct
+        #print(f"correct_count: {correct_count}\nfound pairs: {self.found_pairs}\n----")
+        return correct_count # returns how many pairs were correct from the given guessed pairs
     
     def truth_booth(self, pair):
-        result = pair in self.perfect_pairs
-        if result:
+        """truth booth code, determines if a pair is correct or not"""
+        pair = tuple(sorted(pair))
+        result = pair in self.perfect_pairs # checks if the chosen pair is in the list of perfect pairs
+        if result == True: # if it is, adds it to list of found pairs
             self.found_pairs.append(pair)
             self.perfect_pairs.remove(pair)
             self.available_contestants.difference_update(pair)
-        return result
+        return result # returns T/F if the pair was correct
     
     def is_game_over(self):
+        """checks if the game is over"""
         return len(self.found_pairs) == 8
-
+    
 def pair_contestants(available_contestants):
+    """pairs the contestants together"""
+    available_contestants = list(available_contestants)
     random.shuffle(available_contestants)
     pairs = [(available_contestants[i], available_contestants[i+1]) for i in range(0, len(available_contestants) - 1, 2)]
     return pairs
@@ -49,9 +55,10 @@ def create_new_pairs(previous_pairs, available_contestants):
         valid_pair = False
         index = 1
         while not valid_pair:
+            #print(available_contestants)
             new_pair = (available_contestants[0], available_contestants[index])
             # Add the new pair to new_pairs if it hasn't been tried before. Else try another pair.
-            if new_pair not in previous_pairs:
+            if tuple(sorted(new_pair)) not in [tuple(sorted(pair)) for pair in previous_pairs]:
                 created_pairs.append(new_pair)
                 valid_pair = True
             elif index == (len(available_contestants) - 1):
@@ -63,65 +70,71 @@ def create_new_pairs(previous_pairs, available_contestants):
 
         for contestant in new_pair:
             available_contestants.remove(contestant)
+        
+        #print(created_pairs)
 
     return created_pairs
 
+def adjust_pairs(guessed_pairs, correct_count, pair_probabilities):
+    for pair in guessed_pairs:
+        sorted_pair = tuple(sorted(pair))
+        if sorted_pair not in pair_probabilities:
+            pair_probabilities[sorted_pair] = [0, 0]
+        pair_probabilities[sorted_pair][1] += 1
+        if correct_count > 0:
+            pair_probabilities[sorted_pair][0] += 1
+            correct_count -= 1
+    return pair_probabilities
 
-def adjust_pairs(current_pairs):
-    """ Adjust pairs by swapping one member of an incorrect pair with another. """
-    # Find new configurations that have not been tried before
-    if len(current_pairs) < 2:
-        return current_pairs  # Not enough pairs to swap
+def select_truth_booth_pair(guessed_pairs, pair_probabilities):
+    max_uncertainty = -1
+    selected_pair = None
+    for pair in guessed_pairs:
+        sorted_pair = tuple(sorted(pair))
+        correct, total = pair_probabilities.get(sorted_pair, (0, 0))
+        if total > 0:
+            uncertainty = 1 - abs(correct / total - 0.5)
+            if uncertainty > max_uncertainty:
+                max_uncertainty = uncertainty
+                selected_pair = pair
+    return selected_pair
 
-    new_pairs = current_pairs.copy()
-    # Swap the first element of the first pair with the first element of the second pair
-    new_pairs[0] = (current_pairs[0][0], current_pairs[1][0])
-    new_pairs[1] = (current_pairs[0][1], current_pairs[1][1])
-
-    return new_pairs
-    
-def strategic_pairing(game):
-    """ Plays the AYTO game using strategic guessing and feedback utilization. """
-    round_count = 0
-    available_contestants = list(game.available_contestants)
-    previous_pairs = set()
+def play_game():
+    game = AYTO_Game()
+    rounds = 0
+    pair_probabilities = {}
 
     while not game.is_game_over():
-        # Avoid repeating pairs
-        current_pairs = create_new_pairs(previous_pairs, available_contestants) # creates new set of pairs
-        correct_count = game.new_round(current_pairs) # submits pairs to test for correctness
-        round_count += 1 # increases rounds
+        rounds += 1
+        if rounds == 1:
+            guessed_pairs = pair_contestants(game.available_contestants)
+        else:
+            guessed_pairs = create_new_pairs(game.guesses[-1], game.available_contestants)
+        
+        correct_count = game.new_round(guessed_pairs)
+        pair_probabilities = adjust_pairs(guessed_pairs, correct_count, pair_probabilities)
+        
+        truth_booth_pair = select_truth_booth_pair(guessed_pairs, pair_probabilities)
+        game.truth_booth(truth_booth_pair)
+    print(rounds)
+    return rounds
 
-        if correct_count == 0:
-            game.truth_booth(current_pairs[0]) # just submits the first one, unnecessary since we know there are no correct pairs
-            for n in range(len(current_pairs)):
-                previous_pairs.add(current_pairs[n]) # adds whole list to previous pairs so we don't use them again
-        else: # if there is at least one correct pair in the list
-            while correct_count >= 1:    
-                truth_result = game.truth_booth(current_pairs[0]) # submits the pair to 
-                previous_pairs.add(current_pairs[0]) # adds pair to previous list
-                current_pairs.pop(0) # removes the already tested pair
-
-                if truth_result == True and correct_count > 1: # if it was right and there are more than 1
-                    correct_count = game.new_round(current_pairs)
-                    round_count += 1
-                    continue
-                elif truth_result == True and correct_count == 1: # if it was right, but that's the last correct pair
-                    for n in range(len(current_pairs)):
-                        previous_pairs.add(current_pairs[n]) # adds rest of list to previous pairs so we don't use them again
-                    break
-                elif truth_result == False and correct_count >= 1: # wrong, but there's still more right ones
-                    new_pairs = adjust_pairs(current_pairs)
-                    correct_count = game.new_round(new_pairs)
-                    round_count += 1
-                    continue
-                else:
-                    return "something went wrong"
-    return round_count
-
-
-# Example usage
 #random.seed(42)
-game = AYTO_Game()
-rounds = strategic_pairing(game)
-print(rounds)
+# game = AYTO_Game()
+# rounds = play_game()
+# print(rounds)
+
+round_sample = [] # rounds taken for each game will be appended here to be plotted later.
+for new_game in range(10000):
+    game = AYTO_Game()
+    rounds_taken = play_game()
+    round_sample.append(rounds_taken)
+# Creates a histrogram of rounds taken.
+print(f"median: {statistics.median(round_sample)}\nmean: {statistics.mean(round_sample)}")
+median_value = statistics.median(round_sample)
+mean_value = statistics.mean(round_sample)
+sns.histplot(round_sample).set(title='optimized', xlabel='Rounds')
+plt.figtext(0.5, 0.7, f'Median: {median_value}\nMean: {mean_value}', ha="left", fontsize=12, bbox={"facecolor":"white", "alpha":0.5, "pad":5})
+# Saves histogram to working directory.
+plt.savefig('fshifas')
+plt.close()
