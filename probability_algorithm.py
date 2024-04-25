@@ -23,14 +23,15 @@ def create_new_pairs(previous_pairs, available_contestants):
             else: 
                 index += 1
             
-
         for contestant in new_pair:
             available_contestants.remove(contestant)
         
     return created_pairs
 
-def adjust_pairs(guessed_pairs, correct_count, pair_probabilities):
+def adjust_pairs(guessed_pairs, correct_count, pair_probabilities, verified_pairs):
     for pair in guessed_pairs:
+        if tuple(sorted(pair)) in verified_pairs:
+            continue  # Skip adjustment for verified correct pairs
         sorted_pair = tuple(sorted(pair))
         if sorted_pair not in pair_probabilities:
             pair_probabilities[sorted_pair] = [0, 0]
@@ -66,7 +67,7 @@ def prob_optimized_algo():
             guessed_pairs = create_new_pairs(game.guesses[-1], game.available_contestants)
         
         correct_count = game.new_round(guessed_pairs)
-        pair_probabilities = adjust_pairs(guessed_pairs, correct_count, pair_probabilities)
+        pair_probabilities = adjust_pairs(guessed_pairs, correct_count, pair_probabilities, game.found_pairs)
         
         truth_booth_pair = select_truth_booth_pair(guessed_pairs, pair_probabilities)
         game.truth_booth(truth_booth_pair)
@@ -74,5 +75,5 @@ def prob_optimized_algo():
 
 if __name__ == "__main__":
     game = AYTO_Game()
-    rounds_taken = prob_optimized_algo(game)
+    rounds_taken = prob_optimized_algo()
     print(rounds_taken)
