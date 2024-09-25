@@ -15,7 +15,6 @@ class AYTO_Game:
         """code for what happens when round is over/start of new round"""
         self.guesses.append(guessed_pairs) # adds guessed pair to the list of guesses
         correct_count = sum(1 for pair in guessed_pairs if tuple(sorted(pair)) in self.perfect_pairs) # increases count of correct pairs if the pair was correct
-        #print(f"correct_count: {correct_count}\nfound pairs: {self.found_pairs}\n----")
         return correct_count # returns how many pairs were correct from the given guessed pairs
     
     def truth_booth(self, pair):
